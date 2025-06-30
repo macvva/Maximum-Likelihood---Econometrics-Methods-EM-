@@ -84,3 +84,96 @@ plot_ly(x = ~val.beta, y = ~val.alpha, showscale = FALSE) %>% add_surface(z = ~l
 
 val.alpha[which(loglike.val == max(loglike.val), arr.ind = TRUE)[1]]      # value of alpha which maximizes the log-likelihood
 val.beta[which(loglike.val == max(loglike.val), arr.ind = TRUE)[2]]      # value of beta which maximizes the log-likelihood
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+
+# ====== PARAMETRY ======
+
+# Ścieżka do pliku Excel
+file_path = "twoj_plik.xlsx"
+
+# Grupy walut
+G4 = ["EUR", "USD", "GBP", "JPY"]
+Other_G10 = ["AUD", "CAD", "NZD", "NOK", "SEK", "CHF"]
+Other_non_G10 = ["BRL", "CNY", "DKK", "HKD", "KRW", "MXN", "RUB", "SGD", "TRY", "ZAR"]
+
+# ====== WCZYTYWANIE SHEETÓW ======
+
+df_pln = pd.read_excel(file_path, sheet_name="PLN")
+df_usd = pd.read_excel(file_path, sheet_name="USD")
+df_eur = pd.read_excel(file_path, sheet_name="EUR")
+df_other = pd.read_excel(file_path, sheet_name="Others")
+
+# ====== AGREGOWANIE SUM PO WALUTACH ======
+
+def sum_columns(df, exclude_cols=["others", "residuals"]):
+    cols = [col for col in df.columns if col not in exclude_cols]
+    sums = df[cols].sum()
+    return sums
+
+# Podstawowe sumy z kolumn jawnych
+sums_pln = sum_columns(df_pln)
+sums_usd = sum_columns(df_usd)
+sums_eur = sum_columns(df_eur)
+
+# ====== ROZBICIE "OTHERS" I "RESIDUALS" ======
+
+# Sumy z ostatniego sheeta (others + residuals)
+sums_other = df_other.sum()
+
+# ====== ŁĄCZENIE SUM PO WALUTACH ======
+
+total_sums = pd.concat([sums_pln, sums_usd, sums_eur, sums_other])
+total_sums = total_sums.groupby(level=0).sum()
+
+# ====== SUMOWANIE PER GRUPA ======
+
+# Inicjalizacja
+group_sums = {"PLN": 0, "G4": 0, "Other_G10": 0, "Other_non_G10": 0}
+
+for currency, value in total_sums.items():
+    if currency == "PLN":
+        group_sums["PLN"] += value
+    elif currency in G4:
+        group_sums["G4"] += value
+    elif currency in Other_G10:
+        group_sums["Other_G10"] += value
+    elif currency in Other_non_G10:
+        group_sums["Other_non_G10"] += value
+    else:
+        # Jeśli chcesz, możemy od razu wypisać "inne" (np. HUF, CZK)
+        pass
+
+# ====== USUWANIE PLN Z POZOSTAŁYCH GRUP ======
+
+# PLN już został osobno, więc nic więcej tu nie mieszamy
+
+# ====== WYŚWIETLENIE PODSUMOWANIA ======
+
+print("✅ Podsumowanie per grupa:")
+for group, val in group_sums.items():
+    print(f"{group}: {val}")
+
+print("\n✅ Podsumowanie per waluta:")
+print(total_sums)
+
+# ====== ZAPIS DO EXCELA (opcjonalnie) ======
+
+summary_df = pd.DataFrame(list(group_sums.items()), columns=["Group", "Total"])
+total_sums_df = total_sums.reset_index()
+total_sums_df.columns = ["Currency", "Total"]
+
+with pd.ExcelWriter("podsumowanie.xlsx") as writer:
+    summary_df.to_excel(writer, sheet_name="Group_Summary", index=False)
+    total_sums_df.to_excel(writer, sheet_name="Currency_Summary", index=False)
+
+print("\n✅ Plik 'podsumowanie.xlsx' został utworzony!")
